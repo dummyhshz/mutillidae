@@ -27,9 +27,45 @@
    	}//end try
 
 	try{
-    	switch ($_SESSION["security-level"]){
-			default: // Default case: This code is insecure
-    		case "0": // This code is insecure.
+		// Use prepared statements with PDO instead of deprecated mysql_*
+		$db = new PDO('mysql:host=localhost;dbname=your_database;charset=utf8', 'your_username', 'your_password');
+		$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+		
+		// Validate and sanitize user_id input
+		if (!isset($_GET['user_id']) || !is_numeric($_GET['user_id']) || $_GET['user_id'] <= 0) {
+			throw new Exception('Invalid user ID');
+		}
+		$user_id = (int)$_GET['user_id'];
+		
+		// Check authorization - ensure user can only access their own data or has admin role
+		session_start();
+		if (!isset($_SESSION['user_id']) || ($_SESSION['user_id'] != $user_id && $_SESSION['role'] != 'admin')) {
+			throw new Exception('Unauthorized access');
+		}
+		
+		// Use prepared statement to prevent SQL injection
+		$stmt = $db->prepare("SELECT privilege_level FROM users WHERE user_id = :user_id");
+		$stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
+		$stmt->execute();
+		$result = $stmt->fetch(PDO::FETCH_ASSOC);
+		
+		if ($result === false) {
+			throw new Exception('User not found');
+		}
+		
+		// Sanitize output to prevent XSS
+		$privilege_level = htmlspecialchars($result['privilege_level'], ENT_QUOTES, 'UTF-8');
+		echo "Privilege Level: " . $privilege_level;
+		
+	} catch (Exception $e) {
+		// Handle errors gracefully
+		error_log("Database error: " . $e->getMessage());
+		echo "An error occurred. Please try again later.";
+	}//end try
+
+	switch ($_SESSION["security-level"]){
+		default: // Default case: This code is insecure
+		case "0": // This code is insecure.
 				$lEnableJavaScriptValidation = false;
 				$lEnableBufferOverflowProtection = false;
 				$lProtectAgainstMethodSwitching = false;
